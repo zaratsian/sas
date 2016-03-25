@@ -1,14 +1,14 @@
 
 *************************************************************************************
-* 																					*
-*	Create individual text files for each record. 									*
-* 																					*
-*	This code will convert a table (ie. SAS dataset, excel table, etc) into			* 
-*	text files that contain one file per table record. 								*
-* 																					*
-*	Make sure to specify the file directory and file name. 							*
-*	Check log to verify that no values were truncated. 								*
-* 																					*
+*                                                                                   *
+*	Create individual text files for each record.                               *
+*                                                                                   *
+*	This code will convert a table (ie. SAS dataset, excel table, etc) into     * 
+*	text files that contain one file per table record.                          *
+*                                                                                   *
+*	Make sure to specify the file directory and file name.                      *
+*	Check log to verify that no values were truncated.                          *
+*                                                                                   *
 *************************************************************************************;
 
 * Define the libname and filepath for SAS dataset;
