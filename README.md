@@ -1,7 +1,7 @@
 
-## Base SAS Code
+## SAS Scripts
 
-This repo contains SAS code snippets containing tricks and tips for various data processing requirements. 
+This repo contains SAS scripts and assets, including SAS code and product specific scripts. 
 
 Feel free to copy, update, and use these scripts as-is.
 
