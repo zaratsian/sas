@@ -1,0 +1,230 @@
+<engine port="61053" name="Kiva_Prep">
+  <projects>
+    <project name="Project_1" pubsub="auto" threads="1">
+      <contqueries>
+        <contquery name="Continuous_Query_1">
+          <windows>
+            <window-source name="Source_1" collapse-updates="true">
+              <schema>
+                <fields>
+                  <field name="id" type="string" key="true"/>
+                  <field name="status" type="string"/>
+                  <field name="sector" type="string"/>
+                  <field name="country" type="string"/>
+                  <field name="gender" type="string"/>
+                  <field name="loan_amount" type="int64"/>
+                  <field name="nonpayment" type="string"/>
+                </fields>
+              </schema>
+              <connectors>
+                <connector name="New_Connector_1" class="fs">
+                  <properties>
+                    <property name="type"><![CDATA[pub]]></property>
+                    <property name="fsname"><![CDATA[/home/dtz001/sas/zprojects/kiva/kiva_esp.csv]]></property>
+                    <property name="fstype"><![CDATA[csv]]></property>
+                  </properties>
+                </connector>
+              </connectors>
+            </window-source>
+            <window-procedural name="Procedural_1" collapse-updates="true">
+              <schema>
+                <fields>
+                  <field name="id" type="string" key="true"/>
+                  <field name="sector" type="string"/>
+                  <field name="country" type="string"/>
+                  <field name="loan_amount" type="int64"/>
+                  <field name="EM_PROBABILITY" type="double"/>
+                </fields>
+              </schema>
+              <ds2-code source="Source_1"><![CDATA[ds2_options sas tkgmac;
+ data esp.out;
+ #_local _LEAF_;
+ dcl char(25) I_STATUS;
+ dcl char(25) U_STATUS;
+ dcl char(4) _WARN_;
+ dcl char(32) EM_CLASSIFICATION;
+ method run();
+dcl char(25) _ARBFMT_25;
+ dcl char(15) _ARBFMT_15;
+ dcl char(50) _ARBFMT_50;
+
+ set esp.in;
+
+ _ARBFMT_25 = ' ';
+_ARBFMT_15 = ' ';
+_ARBFMT_50 = ' ';
+_ARBFMT_15 = put(NONPAYMENT, $15.);
+_ARBFMT_15 = DMNORM(_ARBFMT_15, 32.0);
+;
+if _ARBFMT_15 in ('LENDER') then do ;
+_ARBFMT_50 = put(COUNTRY, $50.);
+_ARBFMT_50 = DMNORM(_ARBFMT_50, 32.0);
+;
+if _ARBFMT_50 in ('DOMINICAN REPUBLIC') then do ;
+_NODE_ = 6.0;
+_LEAF_ = 8.0;
+P_STATUSDEFAULTED = 0.14529914529914;
+P_STATUSPAID = 0.85470085470085;
+Q_STATUSDEFAULTED = 0.14529914529914;
+Q_STATUSPAID = 0.85470085470085;
+I_STATUS = 'PAID';
+U_STATUS = 'paid';
+end;
+ else do ;
+if ^MISSING(LOAN_AMOUNT) & 2037.5 <= LOAN_AMOUNT then do ;
+_NODE_ = 15.0;
+_LEAF_ = 12.0;
+P_STATUSDEFAULTED = 0.0;
+P_STATUSPAID = 1.0;
+Q_STATUSDEFAULTED = 0.0;
+Q_STATUSPAID = 1.0;
+I_STATUS = 'PAID';
+U_STATUS = 'paid';
+end;
+ else do ;
+_ARBFMT_50 = put(COUNTRY, $50.);
+_ARBFMT_50 = DMNORM(_ARBFMT_50, 32.0);
+;
+if _ARBFMT_50 in ('ECUADOR') then do ;
+_ARBFMT_25 = put(SECTOR, $25.);
+_ARBFMT_25 = DMNORM(_ARBFMT_25, 32.0);
+;
+if _ARBFMT_25 in ('AGRICULTURE') then do ;
+_NODE_ = 34.0;
+_LEAF_ = 9.0;
+P_STATUSDEFAULTED = 0.34355828220858;
+P_STATUSPAID = 0.65644171779141;
+Q_STATUSDEFAULTED = 0.34355828220858;
+Q_STATUSPAID = 0.65644171779141;
+I_STATUS = 'PAID';
+U_STATUS = 'paid';
+end;
+ else do ;
+_NODE_ = 35.0;
+_LEAF_ = 10.0;
+P_STATUSDEFAULTED = 0.89983305509181;
+P_STATUSPAID = 0.10016694490818;
+Q_STATUSDEFAULTED = 0.89983305509181;
+Q_STATUSPAID = 0.10016694490818;
+I_STATUS = 'DEFAULTED';
+U_STATUS = 'defaulted';
+end;
+end;
+ else do ;
+_NODE_ = 23.0;
+_LEAF_ = 11.0;
+P_STATUSDEFAULTED = 0.98822143698468;
+P_STATUSPAID = 0.01177856301531;
+Q_STATUSDEFAULTED = 0.98822143698468;
+Q_STATUSPAID = 0.01177856301531;
+I_STATUS = 'DEFAULTED';
+U_STATUS = 'defaulted';
+end;
+end;
+end;
+end;
+ else do ;
+_ARBFMT_50 = put(COUNTRY, $50.);
+_ARBFMT_50 = DMNORM(_ARBFMT_50, 32.0);
+;
+if _ARBFMT_50 in ('DOMINICAN REPUBLIC') then do ;
+if ^MISSING(LOAN_AMOUNT) & LOAN_AMOUNT < 362.5 then do ;
+if ^MISSING(LOAN_AMOUNT) & 337.5 <= LOAN_AMOUNT then do ;
+_NODE_ = 17.0;
+_LEAF_ = 2.0;
+P_STATUSDEFAULTED = 0.66666666666666;
+P_STATUSPAID = 0.33333333333333;
+Q_STATUSDEFAULTED = 0.66666666666666;
+Q_STATUSPAID = 0.33333333333333;
+I_STATUS = 'DEFAULTED';
+U_STATUS = 'defaulted';
+end;
+ else do ;
+_NODE_ = 16.0;
+_LEAF_ = 1.0;
+P_STATUSDEFAULTED = 0.35960591133004;
+P_STATUSPAID = 0.64039408866995;
+Q_STATUSDEFAULTED = 0.35960591133004;
+Q_STATUSPAID = 0.64039408866995;
+I_STATUS = 'PAID';
+U_STATUS = 'paid';
+end;
+end;
+ else do ;
+_NODE_ = 9.0;
+_LEAF_ = 3.0;
+P_STATUSDEFAULTED = 0.19242579324462;
+P_STATUSPAID = 0.80757420675537;
+Q_STATUSDEFAULTED = 0.19242579324462;
+Q_STATUSPAID = 0.80757420675537;
+I_STATUS = 'PAID';
+U_STATUS = 'paid';
+end;
+end;
+ else do ;
+_ARBFMT_50 = put(COUNTRY, $50.);
+_ARBFMT_50 = DMNORM(_ARBFMT_50, 32.0);
+;
+if _ARBFMT_50 in ('KENYA') then do ;
+if ^MISSING(LOAN_AMOUNT) & 812.5 <= LOAN_AMOUNT then do ;
+if ^MISSING(LOAN_AMOUNT) & LOAN_AMOUNT < 1162.5 then do ;
+_NODE_ = 32.0;
+_LEAF_ = 5.0;
+P_STATUSDEFAULTED = 0.53571428571428;
+P_STATUSPAID = 0.46428571428571;
+Q_STATUSDEFAULTED = 0.53571428571428;
+Q_STATUSPAID = 0.46428571428571;
+I_STATUS = 'DEFAULTED';
+U_STATUS = 'defaulted';
+end;
+ else do ;
+_NODE_ = 33.0;
+_LEAF_ = 6.0;
+P_STATUSDEFAULTED = 0.04477611940298;
+P_STATUSPAID = 0.95522388059701;
+Q_STATUSDEFAULTED = 0.04477611940298;
+Q_STATUSPAID = 0.95522388059701;
+I_STATUS = 'PAID';
+U_STATUS = 'paid';
+end;
+end;
+ else do ;
+_NODE_ = 20.0;
+_LEAF_ = 4.0;
+P_STATUSDEFAULTED = 0.04161248374512;
+P_STATUSPAID = 0.95838751625487;
+Q_STATUSDEFAULTED = 0.04161248374512;
+Q_STATUSPAID = 0.95838751625487;
+I_STATUS = 'PAID';
+U_STATUS = 'paid';
+end;
+end;
+ else do ;
+_NODE_ = 11.0;
+_LEAF_ = 7.0;
+P_STATUSDEFAULTED = 0.0;
+P_STATUSPAID = 1.0;
+Q_STATUSDEFAULTED = 0.0;
+Q_STATUSPAID = 1.0;
+I_STATUS = 'PAID';
+U_STATUS = 'paid';
+end;
+end;
+end;
+EM_SEGMENT = _NODE_;
+EM_EVENTPROBABILITY = P_STATUSPAID;
+EM_PROBABILITY = MAX(P_STATUSPAID, P_STATUSDEFAULTED);
+EM_CLASSIFICATION = I_STATUS;
+_return: ;
+end;
+ enddata;]]></ds2-code>
+            </window-procedural>
+          </windows>
+          <edges>
+            <edge source="Source_1" target="Procedural_1"/>
+          </edges>
+        </contquery>
+      </contqueries>
+    </project>
+  </projects>
+</engine>

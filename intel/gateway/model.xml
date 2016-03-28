@@ -1,0 +1,440 @@
+
+<!--  ESP model to read Raspberry Pi sound sensor and detect events -->
+<!--  Contact: Brad Klenz, Dan Zaratsian -->
+
+
+<engine port="61063">
+	<projects>
+
+		<project name="Sensors" pubsub="auto" threads="1">
+			  <contqueries>
+				      <contquery name="CQ1">
+
+	       <windows>
+			<window-source name="Data_Stream" pubsub="true" collapse-updates="true">
+			  <schema>
+			    <fields>
+			      <field name="id" type="string" key="true"/>
+			      <field name="location" type="string" key="true"/>
+			      <field name="timestamp" type="stamp"/>
+			      <field name="sound" type="double"/>
+			      <field name="light" type="double"/>
+			      <field name="distance" type="double"/>
+			      <field name="temperature" type="double"/>
+			      <field name="humidity" type="double"/>
+			    </fields>
+			  </schema>
+			</window-source>
+
+			<!-- Use DS2 procedural window to transpose to one record per measurement  -->
+			 <window-procedural name='Tag_transpose'>
+			   <schema>
+			      <fields>
+			      <field name="id" type="string" key="true"/>
+			      <field name="location" type="string" key="true"/>
+			      <field name="timestamp" type="stamp"/>
+			      <field name="sound" type="double"/>
+			      <field name="light" type="double"/>
+			      <field name="distance" type="double"/>
+			      <field name="temperature" type="double"/>
+			      <field name="humidity" type="double"/>
+			      <field name="attribute" type="string" key="true"/>
+			      <field name="value" type="double"/>
+			      </fields>
+			   </schema>
+			   <ds2-code source='tag_transpose_compute'>
+			      <![CDATA[
+				 ds2_options cdump;
+				 data esp.out;
+				 dcl char(5) location;
+				 dcl char(16) attribute;
+				 dcl double value;
+				 method run();
+				 set esp.in;
+				   attribute='sound';
+				   value=sound;
+				   output;
+				   attribute='light';
+				   value=light;
+				   output;
+				   attribute='distance';
+				   value=distance;
+				   output;
+				   attribute='temperature';
+				   value=temperature;
+				   output;
+				   attribute='humidity';
+				   value=humidity;
+				   output;
+				 end;
+				 enddata;
+			      ]]>
+			   </ds2-code>
+			 </window-procedural>
+
+			<!-- Use compute window to keep just to the transposed columns and change keys   -->
+			<window-compute name='Keep_transpose_values'>
+			    <schema>
+				<fields>
+				    <field name="id" type="string" />
+        	        	    <field name="location" type="string" key="true"/>
+				    <field name='timestamp' type='stamp' key='true'/>
+				    <field name='attribute' type='string' key='true'/>
+				    <field name='value' type='double'/>
+			       </fields>
+			    </schema>
+			    <output>
+				<field-expr>id</field-expr>
+				<field-expr>value</field-expr>
+			    </output>
+			</window-compute>
+
+			<!-- Use copy window to specify the time window for the forecast  -->
+			<window-copy name='Tag_forecast_window' >
+			    <retention type='bycount_sliding'>120</retention>
+			</window-copy>
+			
+	
+                        <!-- Calculate the moving average for each tag  -->
+                        <window-aggregate name='Tag_forecast' >
+                            <schema>
+                                <fields>
+                                    <field name='attribute' type='string' key='true'/>
+			            <field name="location" type="string" key="true"/>
+                                    <field name='timestamp' type='stamp' />
+                                    <field name='forecast' type='double'/>
+                                </fields>
+                            </schema>
+                            <output>
+                                <field-expr>ESP_aLast(timestamp)</field-expr>
+                                <field-expr>ESP_aAve(value)</field-expr>
+                           </output>
+                        </window-aggregate>
+                        
+                        <!-- Use fork-join design pattern to bring forecast   -->
+                        <!-- together with original data stream  -->
+                        <window-join name='Join_forecast' index='pi_EMPTY' >
+                            <join type="leftouter" no-regenerates='true' >
+                                <conditions>
+                                  <fields left='location' right='location' />
+                                  <fields left='attribute' right='attribute' />
+                                  <fields left='timestamp' right='timestamp' />
+                                </conditions>
+                            </join>
+                            <output>
+                                <field-selection name='value' source='l_value'/>
+                                <field-selection name='forecast' source='r_forecast'/>
+                            </output>
+                        </window-join>
+                        
+                        <!-- Calculate difference between current value and   -->
+                        <!-- forecast as the residual  -->
+                        <window-compute name='Calc_residual'>
+                            <schema>
+                                <fields>
+                                    <field name='attribute' type='string' key='true'/>
+ 			            <field name="location" type="string" key="true"/>
+                                    <field name='timestamp' type='stamp' key='true'/>
+                                    <field name='value' type='double'/>
+                                    <field name='forecast' type='double'/>
+                                    <field name='residual' type='double'/>
+                               </fields>
+                            </schema>
+                            <output>
+                                <field-expr>value</field-expr>
+                                <field-expr>forecast</field-expr>
+                                <field-expr>value-forecast</field-expr>
+                            </output>
+                        </window-compute>
+                        
+                        <!-- Use copy window to specify the time window for the residual  -->
+                        <window-copy name='Tag_prev_residual_window' >
+                            <retention type='bycount_sliding'>120</retention>
+                        </window-copy>
+
+                        <!-- Calculate the standard deviation of the residual for each tag  -->
+                        <window-aggregate name='Tag_prev_residual' >
+                            <schema>
+                                <fields>
+                                    <field name='attribute' type='string' key='true'/>
+			            <field name="location" type="string" key="true"/>
+                                    <field name='timestamp' type='stamp' />
+                                    <field name='prevResidual' type='double'/>
+                                </fields>
+                            </schema>
+                            <output>
+                                <field-expr>ESP_aLast(timestamp)</field-expr>
+                                <field-expr>ESP_aLag(residual,1)</field-expr>
+                           </output>
+                        </window-aggregate>
+                         
+                        <!-- Use fork-join design pattern to bring the previous residual   -->
+                        <!-- together with forecast data stream  -->
+                        <window-join name='Join_prev_residual' index='pi_EMPTY' >
+                            <join type="leftouter" no-regenerates='true' >
+                                <conditions>
+                                  <fields left='attribute' right='attribute' />
+                                  <fields left='location' right='location' />
+                                  <fields left='timestamp' right='timestamp' />
+                                </conditions>
+                            </join>
+                            <output>
+                                <field-selection name='value' source='l_value'/>
+                                <field-selection name='forecast' source='l_forecast'/>
+                                <field-selection name='residual' source='l_residual'/>
+                                <field-selection name='prevResidual' source='r_prevResidual'/>
+                            </output>
+                        </window-join>
+                       
+                        <!-- Use copy window to specify the time window for the standard deviation  -->
+                        <window-copy name='Tag_stddev_window' >
+                            <retention type='bycount_sliding'>120</retention>
+                        </window-copy>
+
+                        <!-- Calculate the standard deviation of the residual for each tag  -->
+                        <window-aggregate name='Tag_stddev' >
+                            <schema>
+                                <fields>
+                                    <field name='attribute' type='string' key='true'/>
+			            <field name="location" type="string" key="true"/>
+                                    <field name='timestamp' type='stamp' />
+                                    <field name='stddev' type='double'/>
+                                </fields>
+                            </schema>
+                            <output>
+                                <field-expr>ESP_aLast(timestamp)</field-expr>
+                                <field-expr>ESP_aStd(prevResidual)</field-expr>
+                           </output>
+                        </window-aggregate>
+                        
+                        <!-- Use fork-join design pattern to bring the standard deviation   -->
+                        <!-- together with forecast/residual data stream  -->
+                        <window-join name='Join_stddev' index='pi_EMPTY' >
+                            <join type="leftouter" no-regenerates='true' >
+                                <conditions>
+                                  <fields left='attribute' right='attribute' />
+                                  <fields left='location' right='location' />
+                                  <fields left='timestamp' right='timestamp' />
+                                </conditions>
+                            </join>
+                            <output>
+                                <field-selection name='value' source='l_value'/>
+                                <field-selection name='forecast' source='l_forecast'/>
+                                <field-selection name='residual' source='l_residual'/>
+                                <field-selection name='stddev' source='r_stddev'/>
+                            </output>
+                        </window-join>
+
+                        <!-- Calculate the control limits for each tag  -->
+                        <window-compute name='Tag_ctllim' >
+                            <schema>
+                                <fields>
+                                    <field name='attribute' type='string' key='true'/>
+			            <field name="location" type="string" key="true"/>
+                                    <field name='timestamp' type='stamp' key='true'/>
+                                    <field name='value' type='double'/>
+                                    <field name='forecast' type='double'/>
+                                    <field name='residual' type='double'/>
+                                    <field name='stddev' type='double'/>
+                                    <field name='uCtlLimit' type='double'/>
+                                    <field name='lCtlLimit' type='double'/>
+                                </fields>
+                            </schema>
+                            <output>
+                                <field-expr>value</field-expr>
+                                <field-expr>forecast</field-expr>
+                                <field-expr>residual</field-expr>
+                                <field-expr>stddev</field-expr>
+                                <field-expr>3*stddev</field-expr>
+                                <field-expr>0-3*stddev</field-expr>
+                           </output>
+
+                        </window-compute>
+
+                        <!-- Filter stream to one tag for easier viewing - demo only  -->
+                        <window-filter name='View_sound' >
+                           <expression>attribute=="sound           "</expression>
+                        </window-filter>
+                        
+                        <!-- Filter stream to one tag for easier viewing - demo only  -->
+                        <window-filter name='View_light' >
+                           <expression>attribute=="light           "</expression>
+                        </window-filter>
+                        
+                        <!-- Filter stream to one tag for easier viewing - demo only  -->
+                        <window-filter name='View_distance' >
+                           <expression>attribute=="distance        "</expression>
+                        </window-filter>
+                        
+                        <!-- Filter stream to one tag for easier viewing - demo only  -->
+                        <window-filter name='View_temperature' >
+                           <expression>attribute=="temperature     "</expression>
+                        </window-filter>
+                        
+                        <!-- Filter stream to one tag for easier viewing - demo only  -->
+                        <window-filter name='View_humidity' >
+                           <expression>attribute=="humidity        "</expression>
+                        </window-filter>
+
+                        <!-- Filter stream to one tag for easier viewing - demo only  -->
+                        <window-filter name='View_sound_PI105' >
+                           <expression>attribute=="sound           " and location=="pi105"</expression>
+                        </window-filter>
+                        
+                        <!-- Filter stream to one tag for easier viewing - demo only  -->
+                        <window-filter name='View_light_PI105' >
+                           <expression>attribute=="light           " and location=="pi105"</expression>
+                        </window-filter>
+                        
+                        <!-- Filter stream to one tag for easier viewing - demo only  -->
+                        <window-filter name='View_distance_PI105' >
+                           <expression>attribute=="distance        " and location=="pi105"</expression>
+                        </window-filter>
+
+                        <!-- Filter stream to one tag for easier viewing - demo only  -->
+                        <window-filter name='View_sound_PI107' >
+                           <expression>attribute=="sound           " and location=="pi107"</expression>
+                        </window-filter>
+                        
+                        <!-- Filter stream to one tag for easier viewing - demo only  -->
+                        <window-filter name='View_light_PI107' >
+                           <expression>attribute=="light           " and location=="pi107"</expression>
+                        </window-filter>
+                        
+                        <!-- Filter stream to one tag for easier viewing - demo only  -->
+                        <window-filter name='View_distance_PI107' >
+                           <expression>attribute=="distance        " and location=="pi107"</expression>
+                        </window-filter>
+
+
+                        <!-- Filter stream where residual exceeds control limits  -->
+                        <window-filter name='Signals' >
+                           <expression>
+                             <![CDATA[residual>uCtlLimit or residual<lCtlLimit]]>
+                           </expression>
+                        </window-filter>
+
+                         <!-- Add dummy key field used in aggregate window   -->
+                         <!-- note: aggregate window requiers key field but  -->
+                         <!-- we want to aggregate across all events that   -->
+                         <!-- get through filter  -->
+                         <window-compute name='Signal_key'>
+                             <schema>
+                                 <fields>
+                                     <field name='attribute' type='string' key='true'/>
+ 			            <field name="location" type="string" key="true"/>
+                                    <field name='timestamp' type='stamp' key='true'/>
+                                     <field name='signalKey' type='int32'/>
+                                </fields>
+                             </schema>
+                             <output>
+                                 <field-expr>1</field-expr>
+                             </output>
+                         </window-compute>
+                        
+                        <!-- Calculate the beginning and current time in the signal window  -->
+                        <window-aggregate name='Signal_range' >
+                            <schema>
+                                <fields>
+                                    <field name='signalKey' type='int32' key='true'/>
+                                    <field name='beginTimestamp' type='stamp' />
+                                    <field name='currentTimestamp' type='stamp' />
+                                </fields>
+                            </schema>
+                            <output>
+                                <field-expr>ESP_aMin(timestamp)</field-expr>
+                                <field-expr>ESP_aMax(timestamp)</field-expr>
+                           </output>
+                        </window-aggregate>
+ 
+                         <!-- Calculate the beginning and current time using lag function  -->
+                         <window-aggregate name='Signal_range_lag' >
+                             <schema>
+                                 <fields>
+                                     <field name='signalKey' type='int32' key='true'/>
+                                     <field name='beginTimestamp' type='stamp' />
+                                     <field name='currentTimestamp' type='stamp' />
+                                     <field name='signalCount' type='int32' />
+                                 </fields>
+                             </schema>
+                             <output>
+                                <field-expr>ESP_aLag(timestamp,5)</field-expr>
+                                <field-expr>ESP_aLast(timestamp)</field-expr>
+                                <field-expr>ESP_aCount()</field-expr>
+                            </output>
+                         </window-aggregate>
+
+                        <!-- Detect signal clusters for events  -->
+                        <window-filter name='Events' >
+                           <expression>
+                             <![CDATA[currentTimestamp-beginTimestamp>0
+                                and currentTimestamp-beginTimestamp<0.25]]>
+                           </expression>
+                        </window-filter>
+
+                        <!-- Use copy window to show recent events -->
+                        <window-copy name='Recent_event_window' >
+                            <retention type='bycount_sliding'>10</retention>
+                            <!--
+                            <connectors>
+                              <connector class='fs'>
+                                <properties>
+                                  <property name='type'>sub</property>
+                                  <property name='fstype'>csv</property>
+                                  <property name='fsname'>Recent_sensor_event_window.csv</property>
+                                  <property name='snapshot'>true</property>
+                                </properties>
+                              </connector>
+                            </connectors>i
+                            --> 
+                         </window-copy>
+
+      </windows>
+      
+      <edges>
+       <edge source='Data_Stream' target='Tag_transpose'/>
+       <edge source='Tag_transpose' target='Keep_transpose_values'/>
+       <edge source='Keep_transpose_values' target='Tag_forecast_window'/>
+       <edge source='Tag_forecast_window' target='Tag_forecast'/>
+       <!--
+       <edge source='Tag_forecast_window' target='TK_forecast'/>
+       -->
+       <edge source='Tag_forecast_window' target='Join_forecast'/>
+       <edge source='Tag_forecast' target='Join_forecast'/>
+       <edge source='Join_forecast' target='Calc_residual'/>
+       <edge source='Calc_residual' target='Tag_prev_residual_window'/>
+       <edge source='Tag_prev_residual_window' target='Tag_prev_residual'/>
+       <edge source='Calc_residual' target='Join_prev_residual'/>
+       <edge source='Tag_prev_residual' target='Join_prev_residual'/>
+       <edge source='Join_prev_residual' target='Tag_stddev_window'/>
+       <edge source='Tag_stddev_window' target='Tag_stddev'/>
+       <edge source='Calc_residual' target='Join_stddev'/>
+       <edge source='Tag_stddev' target='Join_stddev'/>
+       <edge source='Join_stddev' target='Tag_ctllim'/>
+       <edge source='Tag_ctllim' target='View_sound'/>
+       <edge source='Tag_ctllim' target='View_light'/>
+       <edge source='Tag_ctllim' target='View_distance'/>
+       <edge source='Tag_ctllim' target='View_temperature'/>
+       <edge source='Tag_ctllim' target='View_humidity'/>
+       <edge source='Tag_ctllim' target='Signals'/>
+       <edge source='Tag_ctllim' target='View_sound_PI105'/>
+       <edge source='Tag_ctllim' target='View_light_PI105'/>
+       <edge source='Tag_ctllim' target='View_distance_PI105'/>
+       <edge source='Tag_ctllim' target='View_sound_PI107'/>
+       <edge source='Tag_ctllim' target='View_light_PI107'/>
+       <edge source='Tag_ctllim' target='View_distance_PI107'/>
+       <edge source='Signals' target='Signal_key'/>
+       <edge source='Signal_key' target='Signal_range'/>
+       <edge source='Signal_key' target='Signal_range_lag'/>
+       <edge source='Signal_range_lag' target='Events'/>
+       <edge source='Events' target='Recent_event_window'/>
+     </edges>
+      
+    </contquery>
+  </contqueries>
+</project>
+
+</projects>
+</engine>
+                     
+

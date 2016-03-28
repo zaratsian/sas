@@ -1,0 +1,8 @@
+
+
+
+
+http://localhost/streamviewer/streamviewer.html?server=http://localhost:61002&v_0=window:trades_proj/trades_cq/Trades;mode:updating;type:table;x:10;y:10;w:630;h:290;f:tradeID,security,quantity,price,traderID,time&v_1=window:trades_proj/trades_cq/Traders;mode:updating;type:table;x:650;y:310;w:650;h:230;f:ID,name&v_2=window:trades_proj/trades_cq/TotalCost;mode:updating;type:table;x:10;y:310;w:630;h:230;f:tradeID,security,quantity,price,totalCost,traderID,time,name&v_3=window:trades_proj/trades_cq/LargeTrades;mode:updating;type:table;x:650;y:10;w:650;h:290;f:tradeID,security,quantity,price,traderID,time
+
+
+
