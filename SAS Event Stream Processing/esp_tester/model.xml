@@ -1,0 +1,36 @@
+
+
+<engine port="61053">
+
+    <projects>
+
+        <project name='project1' pubsub='auto' threads='1'>
+            <contqueries>
+                <contquery name='cq1'>
+
+                    <windows>
+
+                        <window-source name="source1" collapse-updates="true">
+                            <schema>
+                                <fields>
+                                    <field name="ID" type="string" key="true"/>
+                                    <field name="Timestamp" type="string"/>
+                                    <field name="Field" type="string"/>
+                                </fields>
+                            </schema>
+                        </window-source>
+
+                        <window-copy name="copy1" collapse-updates="true">
+                            <retention type="bytime_jumping">120 seconds</retention>
+                        </window-copy>
+
+                    </windows>
+                    <edges>
+                        <edge source="source1" target="copy1"/>
+                    </edges>
+                </contquery>
+            </contqueries>
+        </project>
+    </projects>
+
+</engine>
