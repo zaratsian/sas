@@ -4,7 +4,7 @@
 #   Downlaod SAS Download Manager
 #
 #######################################################################################################################
-curl -o /tmp/esdclient__94360__lax__xx__web__1 'http://image1.unx.sas.com/tools/esdclient/clientdownload.php?path=/usr/local/www/data/web/installdepot/exe/esdclient/current/lax/www&file=esdclient__94360__lax__xx__web__1'
+http://image1.unx.sas.com/tools/esdclient/clientdownload.php?path=/usr/local/www/data/web/installdepot/exe/esdclient/current/lax/www&file=esdclient__94360__lax__xx__web__1
 
 
 
